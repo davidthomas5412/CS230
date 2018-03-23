@@ -1,45 +1,29 @@
 import torch
-from torch.autograd import Variable
-from torch.utils.data import DataLoader
-
-from unet.data import *
-from unet.segnet import SegNet
-from unet.loss import CrossEntropyLoss2d
-
 import numpy as np
 
-seed = 0
-np.random.seed(seed)
-torch.manual_seed(seed)
-torch.cuda.manual_seed_all(seed)
-
-net = SegNet(bilinear=True).eval()
-net.cuda()
-net.load_state_dict(torch.load('/scratch/users/dthomas5/exp3/trainjobs/checkpoint_bilinear_True.txt'))
-
-img_size = 512
-padding = 0
-batch_size=1
-criterion = CrossEntropyLoss2d(padding=padding)
+from torch.utils.data import DataLoader
+from model.data import *
+from model.simplenet import SimpleBatchnormNet
+from torch.autograd import Variable
 
 
-dataset = StreakImageDataset(transform=transforms.Compose([RandomCrop(img_size, padding), 
-	RandomFlipRotate(), ToSegmentClasses(10), LogNormalize(), ToTensor()]), is_train=False)
-loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=1)
+dn = SimpleBatchnormNet()
+dn.load_state_dict(torch.load('experiments/checkpoint_simple',
+		map_location=lambda storage, loc:storage))
+dn = dn.eval()
 
-running_loss = 0.0
-for i, data in enumerate(loader):
-	inputs, labels = Variable(data['inp']).cuda(), Variable(data['lab']).cuda()
-	outputs = net(inputs)
-	loss = criterion(outputs, labels)
-	running_loss += loss.data[0]
-	print(i, ' - ', loss.data[0])
-	if i < 100:
-		np.save('/scratch/users/dthomas5/exp3/testimgs2/input{}'.format(i), inputs.cpu().data.numpy())
-		np.save('/scratch/users/dthomas5/exp3/testimgs2/output{}'.format(i), outputs.cpu().data.numpy())
-		np.save('/scratch/users/dthomas5/exp3/testimgs2/label{}'.format(i), labels.cpu().data.numpy())
-	else:
-		break
+loader = DataLoader(FourthDataScaledTest(), batch_size=1, num_workers=1)
 
-print('test loss [1,100,1]: {:f}'.format(running_loss))
 
+for i,sample in enumerate(loader):
+
+	input_batch = Variable(sample['input'])
+	label_batch = Variable(sample['label'])
+	output_batch = dn(input_batch)
+
+	np.save('/Users/user/Code/Astronomy/exp4/notebooks/test/first/i{}.npy'.format(i),
+		input_batch.data.numpy())
+	np.save('/Users/user/Code/Astronomy/exp4/notebooks/test/first/l{}.npy'.format(i),
+		label_batch.data.numpy())
+	np.save('/Users/user/Code/Astronomy/exp4/notebooks/test/first/o{}.npy'.format(i),
+		output_batch.data.numpy())
